@@ -72,6 +72,13 @@ document.getElementById('export-btn').addEventListener('click', () => {
   });
 });
 
+// Change this URL to point directly to your specific repository's issue creation page
+const issuesUrl = "https://github.com/dataman00/CT-Privacy-Auditor/issues";
+
+// Inject a secure, bot-proof feedback button into the UI panel
+const feedbackBox = document.getElementById("dev-contact");
+feedbackBox.innerHTML = `<a href="${issuesUrl}" target="_blank">Submit App Feedback</a>`;
+
 // Clear tracking storage keys completely and reset the badge visual
 document.getElementById('clear-btn').addEventListener('click', () => {
   chrome.storage.local.set({ trackerCounts: {} }, () => {
