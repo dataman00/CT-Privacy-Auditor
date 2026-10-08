@@ -20,6 +20,7 @@
 
 
 const TARGET_TRACKERS = [
+  // --- Your Original Tracking List ---
   "google-analytics.com",
   "googletagmanager.com",
   "scorecardresearch.com",
@@ -33,13 +34,42 @@ const TARGET_TRACKERS = [
   "adnxs.com",
   "pubmatic.com",
   "impactradius-event.com",
-  "://redirectingat.com",
+  "redirectingat.com",
   "dpbolvw.net",
   "jdoqocy.com",
   "tkqlhce.com",
   "awin1.com",
-  "anrdoezrs.net"
+  "anrdoezrs.net",
+
+  // --- 1. Identity Resolution & Fingerprinting Networks ---
+  "wunderkind.co",
+  "bkn.ai",
+  "blackcrow.ai",
+  "blackcrow.me",
+  "retention.com",
+  "geoiq.io",
+
+  // --- 2. Upgraded Session Replay & Experience Analytics ---
+  "contentsquare.net",
+  "contentsquare.com",
+  "clarity.ms",
+  "inspectlet.com",
+
+  // --- 3. Alternative Affiliate & Sub-Affiliate Bridges ---
+  "viglink.com",
+  "sovrn.com",
+  "pntrac.com",
+  "pepperjam.com",
+  "rakutenmarketing.com",
+  "rmkt.co",
+
+  // --- 4. Big Tech Universal Advertising Frameworks ---
+  "://google.com",
+  "connect.facebook.net",
+  "ads-twitter.com",
+  "://bing.com"
 ];
+
 
 // Helper function to calculate total hits and update the icon badge
 function updateBadge() {
