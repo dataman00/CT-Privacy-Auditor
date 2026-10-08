@@ -20,106 +20,52 @@
 
 
 const TARGET_TRACKERS = [
-  // --- Your Original Tracking List ---
-  "google-analytics.com",
-  "googletagmanager.com",
-  "scorecardresearch.com",
-  "bounceexchange.com",
-  "bounceit.net",
-  "hotjar.com",
-  "criteo.com",
-  "criteo.net",
-  "amazon-adsystem.com",
-  "doubleclick.net",
-  "adnxs.com",
-  "pubmatic.com",
-  "impactradius-event.com",
-  "redirectingat.com",
-  "dpbolvw.net",
-  "jdoqocy.com",
-  "tkqlhce.com",
-  "awin1.com",
-  "anrdoezrs.net",
-
-  // --- 1. Identity Resolution & Fingerprinting Networks ---
-  "wunderkind.co",
-  "bkn.ai",
-  "blackcrow.ai",
-  "blackcrow.me",
-  "retention.com",
-  "geoiq.io",
-
-  // --- 2. Upgraded Session Replay & Experience Analytics ---
-  "contentsquare.net",
-  "contentsquare.com",
-  "clarity.ms",
-  "inspectlet.com",
-
-  // --- 3. Alternative Affiliate & Sub-Affiliate Bridges ---
-  "viglink.com",
-  "sovrn.com",
-  "pntrac.com",
-  "pepperjam.com",
-  "rakutenmarketing.com",
-  "rmkt.co",
-
-  // --- 4. Big Tech Universal Advertising Frameworks ---
-  "://google.com",
-  "connect.facebook.net",
-  "ads-twitter.com",
-  "://bing.com"
+  "google-analytics.com", "googletagmanager.com", "scorecardresearch.com",
+  "bounceexchange.com", "bounceit.net", "hotjar.com", "criteo.com", "criteo.net",
+  "amazon-adsystem.com", "doubleclick.net", "adnxs.com", "pubmatic.com",
+  "impactradius-event.com", "redirectingat.com", "dpbolvw.net", "jdoqocy.com",
+  "tkqlhce.com", "awin1.com", "anrdoezrs.net", "wunderkind.co", "bkn.ai",
+  "blackcrow.ai", "blackcrow.me", "retention.com", "geoiq.io", "contentsquare.net",
+  "contentsquare.com", "clarity.ms", "inspectlet.com", "viglink.com", "sovrn.com",
+  "pntrac.com", "pepperjam.com", "rakutenmarketing.com", "rmkt.co",
+  "://google.com", "connect.facebook.net", "ads-twitter.com", "://bing.com"
 ];
 
-
-// Helper function to calculate total hits and update the icon badge
 function updateBadge() {
   chrome.storage.local.get({ trackerCounts: {} }, (data) => {
-    const counts = data.trackerCounts;
     let totalHits = 0;
-    
-    // Sum up all the hits
-    for (let domain in counts) {
-      totalHits += counts[domain];
+    for (let domain in data.trackerCounts) {
+      totalHits += data.trackerCounts[domain];
     }
-    
     if (totalHits > 0) {
       chrome.action.setBadgeText({ text: totalHits.toString() });
-      chrome.action.setBadgeBackgroundColor({ color: "#c9302c" }); // Red badge
+      chrome.action.setBadgeBackgroundColor({ color: "#c9302c" });
     } else {
-      chrome.action.setBadgeText({ text: "" }); // Clear badge if 0
+      chrome.action.setBadgeText({ text: "" });
     }
   });
 }
 
-// Initialize badge text when background worker wakes up
 updateBadge();
 
-// Monitor network traffic and update counter metrics
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
     try {
       const url = new URL(details.url);
       const hostname = url.hostname;
-
       const matchedTracker = TARGET_TRACKERS.find(tracker => hostname.includes(tracker));
 
       if (matchedTracker) {
         chrome.storage.local.get({ trackerCounts: {} }, (data) => {
           let counts = data.trackerCounts;
-          
-          if (counts[matchedTracker]) {
-            counts[matchedTracker] += 1;
-          } else {
-            counts[matchedTracker] = 1;
-          }
-          
+          counts[matchedTracker] = (counts[matchedTracker] || 0) + 1;
           chrome.storage.local.set({ trackerCounts: counts }, () => {
-            updateBadge(); // Update the icon visual right after saving
+            updateBadge();
           });
         });
       }
     } catch (e) {
-      console.error("Error evaluating target tracker payload: ", e);
+      console.error("Error evaluating tracker payload:", e);
     }
   },
   { urls: ["<all_urls>"] }
