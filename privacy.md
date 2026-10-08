@@ -18,4 +18,4 @@ The CT Privacy Compliance Auditor extension operates completely locally on your 
 All data tracked by the extension (infraction hit counters) is temporary and remains inside your browser storage. Users retain total control over this data and can completely wipe all logged information instantly by clicking the "Clear Data" button inside the extension popup window. Uninstalling the extension will automatically remove all associated local data.
 
 ## 4. Contact Information
-If you have any questions or compliance inquiries regarding this extension, please contact the developer at: 339724483+dataman00@users.noreply.github.com
+If you have any questions or compliance inquiries regarding this extension, please contact the developer at: 01-turnout-hacks@icloud.com
