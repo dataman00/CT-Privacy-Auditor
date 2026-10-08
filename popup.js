@@ -16,7 +16,19 @@
   along with this program. If not, see <https://gnu.org>.
 */
 
-// Pull data metrics to dynamically display elements in the extension panel
+// A categorization map helper function
+function getTrackerCategory(domain) {
+  const identity = ["wunderkind.co", "bkn.ai", "blackcrow.ai", "blackcrow.me", "retention.com", "geoiq.io"];
+  const replay = ["contentsquare.net", "contentsquare.com", "clarity.ms", "inspectlet.com", "hotjar.com", "bounceexchange.com", "bounceit.net"];
+  const affiliate = ["impactradius-event.com", "redirectingat.com", "dpbolvw.net", "jdoqocy.com", "tkqlhce.com", "awin1.com", "anrdoezrs.net", "viglink.com", "sovrn.com", "pntrac.com", "pepperjam.com", "rakutenmarketing.com", "rmkt.co"];
+  
+  if (identity.some(t => domain.includes(t))) return "Identity Resolution & Profile Fingerprinting";
+  if (replay.some(t => domain.includes(t))) return "Session Replay & Experience Tracking";
+  if (affiliate.some(t => domain.includes(t))) return "Affiliate Redirect Commerce Tracker";
+  return "General Target Advertising & Analytics Framework";
+}
+
+// Display items inside panel layout interface natively
 chrome.storage.local.get({ trackerCounts: {} }, (data) => {
   const list = document.getElementById('violation-list');
   const domains = Object.keys(data.trackerCounts);
@@ -27,7 +39,7 @@ chrome.storage.local.get({ trackerCounts: {} }, (data) => {
     domains.forEach(domain => {
       const li = document.createElement('li');
       const domainText = document.createElement('span');
-      domainText.textContent = domain;
+      domainText.innerHTML = `<strong>${domain}</strong><br><small style='color:#777; font-size:10px;'>${getTrackerCategory(domain)}</small>`;
       
       const counterBadge = document.createElement('span');
       counterBadge.className = 'counter';
@@ -40,31 +52,44 @@ chrome.storage.local.get({ trackerCounts: {} }, (data) => {
   }
 });
 
-// Feature: Export Audit Log Data to plain text document format natively
+// Feature: Export Audit Log Data grouped nicely by compliance type categorization
 document.getElementById('export-btn').addEventListener('click', () => {
   chrome.storage.local.get({ trackerCounts: {} }, (data) => {
     const domains = Object.keys(data.trackerCounts);
     if (domains.length === 0) {
-      alert("No data available to export.");
+      alert("No compliance logs available to export.");
       return;
     }
 
-    let outputText = "CT PRIVACY AUDIT REPORT - COMPLIANCE LOG\n";
-    outputText += `Generated: ${new Date().toLocaleString()}\n`;
-    outputText += "========================================\n\n";
-    
+    let report = "========================================================\n";
+    report += "         CTDPA COMPLIANCE AUDIT COMPREHENSIVE REPORT     \n";
+    report += ` Generated: ${new Date().toLocaleString()}\n`;
+    report += ` Location: Derby, Connecticut\n`;
+    report += "========================================================\n\n";
+
+    // Grouping tracking strings dynamically for formatting 
+    const categories = {};
     domains.forEach(domain => {
-      outputText += `Domain: ${domain}\n`;
-      outputText += `Flagged Infractions: ${data.trackerCounts[domain]} hits\n`;
-      outputText += `Potential Status: Non-Compliant (GPC Signal Ignored)\n`;
-      outputText += "----------------------------------------\n";
+      const cat = getTrackerCategory(domain);
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push({ domain: domain, hits: data.trackerCounts[domain] });
     });
 
-    const blob = new Blob([outputText], { type: "text/plain" });
+    for (const [category, entries] of Object.entries(categories)) {
+      report += `[CATEGORY]: ${category.toUpperCase()}\n`;
+      report += `--------------------------------------------------------\n`;
+      entries.forEach(entry => {
+        report += ` - Network Domain   : ${entry.domain}\n`;
+        report += ` - Interceptions    : ${entry.hits} hit(s)\n`;
+        report += ` - Enforcement Flag : NON-COMPLIANT (Sec-GPC Opt-Out Ignored)\n\n`;
+      });
+    }
+
+    const blob = new Blob([report], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ct_privacy_compliance_report_${new Date().toISOString().slice(0,10)}.txt`;
+    a.download = `ctdpa_compliance_audit_${new Date().toISOString().slice(0,10)}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -72,18 +97,9 @@ document.getElementById('export-btn').addEventListener('click', () => {
   });
 });
 
-// Change this URL to point directly to your specific repository's issue creation page
-const issuesUrl = "https://github.com/dataman00/CT-Privacy-Auditor/issues";
-
-// Inject a secure, bot-proof feedback button into the UI panel
-const feedbackBox = document.getElementById("dev-contact");
-feedbackBox.innerHTML = `<a href="${issuesUrl}" target="_blank">Submit App Feedback</a>`;
-
-// Clear tracking storage keys completely and reset the badge visual
 document.getElementById('clear-btn').addEventListener('click', () => {
   chrome.storage.local.set({ trackerCounts: {} }, () => {
-    chrome.action.setBadgeText({ text: "" }); // Clear icon text natively
+    chrome.action.setBadgeText({ text: "" });
     location.reload();
   });
 });
-
