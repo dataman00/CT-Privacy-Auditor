@@ -17,8 +17,6 @@
 */
 
 // Your existing extension code starts here...
-
-
 const TARGET_TRACKERS = [
   "google-analytics.com", "googletagmanager.com", "scorecardresearch.com",
   "bounceexchange.com", "bounceit.net", "hotjar.com", "criteo.com", "criteo.net",
