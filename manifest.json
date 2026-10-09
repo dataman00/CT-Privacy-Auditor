@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "CT Privacy Compliance Auditor",
+  "version": "2.0.0",
+  "description": "Sends the Global Privacy Control (GPC) opt-out signal and logs tracker activity per site to help audit CTDPA compliance.",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest",
+    "webRequest",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "gpc_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CT Privacy Auditor",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  }
+}

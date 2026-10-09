@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CT Privacy Auditor</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --card: #ffffff;
+      --text: #1f2933;
+      --muted: #52606d;
+      --border: #e1e6eb;
+      --accent: #c9302c;
+      --ok: #2f7d32;
+      --warn: #b26a00;
+      --blue: #0b63c5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16191d;
+        --card: #1f242a;
+        --text: #e6e9ed;
+        --muted: #a3adb8;
+        --border: #313840;
+        --accent: #ef6461;
+        --ok: #6cc070;
+        --warn: #f0b14a;
+        --blue: #5aa2f0;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 360px;
+      margin: 0;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 12px;
+      color: var(--text);
+      background: var(--bg);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    h1 { font-size: 16px; margin: 0; color: var(--accent); }
+    #version { color: var(--muted); font-size: 11px; }
+    h2 { font-size: 12px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 11px; line-height: 1.4; }
+    .status-on { color: var(--ok); font-weight: 600; }
+    .status-off { color: var(--warn); font-weight: 600; }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+    /* Toggle switch */
+    .switch { display: inline-block; position: relative; width: 36px; height: 20px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background: #9aa5b1; border-radius: 20px; transition: background .15s;
+    }
+    .slider::before {
+      content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px;
+      background: #fff; border-radius: 50%; transition: transform .15s;
+    }
+    .switch input:checked + .slider { background: var(--ok); }
+    .switch input:checked + .slider::before { transform: translateX(16px); }
+    .switch input:focus-visible + .slider { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+    #site-list { max-height: 230px; overflow-y: auto; }
+    details {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+    details.cookies { border-left-color: var(--accent); }
+    details.requests-only { border-left-color: var(--warn); }
+    summary {
+      list-style: none; cursor: pointer; padding: 7px 10px;
+      display: flex; justify-content: space-between; gap: 8px;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary .site { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pill {
+      flex: none; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 600;
+      background: var(--border); color: var(--text);
+    }
+    .pill.cookie { background: var(--accent); color: #fff; }
+    .tracker-row { display: flex; justify-content: space-between; padding: 4px 10px 4px 18px; border-top: 1px solid var(--border); }
+    .empty { padding: 10px; text-align: center; }
+
+    .btns { display: flex; gap: 6px; margin-top: 10px; }
+    button {
+      flex: 1; border: none; border-radius: 4px; padding: 8px 4px;
+      font-weight: 600; font-size: 11px; cursor: pointer; color: #fff;
+    }
+    button:disabled { opacity: .5; cursor: default; }
+    #export-csv, #export-json { background: var(--blue); }
+    #clear-btn { background: #6b7785; }
+    #clear-btn.armed { background: var(--accent); }
+    footer { margin-top: 10px; text-align: center; }
+    a { color: var(--blue); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CT Privacy Auditor</h1>
+    <span id="version"></span>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <label for="gpc-toggle"><strong>Send GPC opt-out signal</strong></label>
+      <label class="switch">
+        <input type="checkbox" id="gpc-toggle" aria-describedby="gpc-status">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="gpc-status" class="small" style="margin-top:6px"></div>
+  </div>
+
+  <h2>This page</h2>
+  <div class="card" id="this-site">
+    <div class="row">
+      <span id="site-host" class="mono">...</span>
+      <span id="site-count" class="pill"></span>
+    </div>
+    <div id="site-gpcjson" class="small muted" style="margin-top:6px"></div>
+  </div>
+
+  <h2>All sites</h2>
+  <p class="small muted" style="margin:0 0 8px">
+    Tracker activity recorded while your GPC signal was on. A request alone does not prove a site
+    ignored your opt-out. A tracker trying to set a cookie is a stronger sign. This is not legal advice.
+  </p>
+  <div id="site-list"></div>
+  <div id="more-note" class="small muted"></div>
+
+  <div class="btns">
+    <button id="export-csv">Export CSV</button>
+    <button id="export-json">Export JSON</button>
+    <button id="clear-btn">Clear data</button>
+  </div>
+
+  <footer class="small">
+    <a id="dev-contact" href="https://github.com/dataman00/CT-Privacy-Auditor/issues" target="_blank" rel="noopener">Submit feedback</a>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
