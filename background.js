@@ -26,7 +26,7 @@ const TARGET_TRACKERS = [
   "blackcrow.ai", "blackcrow.me", "retention.com", "geoiq.io", "contentsquare.net",
   "contentsquare.com", "clarity.ms", "inspectlet.com", "viglink.com", "sovrn.com",
   "pntrac.com", "pepperjam.com", "rakutenmarketing.com", "rmkt.co",
-  "://google.com", "connect.facebook.net", "ads-twitter.com", "://bing.com"
+  "google.com", "connect.facebook.net", "ads-twitter.com", "bing.com"
 ];
 
 function updateBadge() {
