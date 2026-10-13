@@ -1,8 +1,8 @@
 # Privacy Policy for CT Privacy Compliance Auditor
 
-**Last Updated: October 9, 2026**
+**Last Updated: October 13, 2026**
 
-This Privacy Policy describes how the "CT Privacy Compliance Auditor" browser extension handles user data. Our core commitment is privacy: your browsing data belongs to you.
+This Privacy Policy describes how the "CT Privacy Compliance Auditor" browser extension for Chrome and Firefox handles user data. Our core commitment is privacy: your browsing data belongs to you.
 
 ## 1. What the Extension Does
 * **Sends an opt-out signal:** While GPC is switched on, the extension adds the Global Privacy Control header (`Sec-GPC: 1`) to your web requests and sets `navigator.globalPrivacyControl` to `true` on the pages you visit, so sites can detect your opt-out preference.
@@ -11,7 +11,7 @@ This Privacy Policy describes how the "CT Privacy Compliance Auditor" browser ex
 * **Checks the current site's GPC file:** When you open the extension popup, it requests the current website's public `/.well-known/gpc.json` file (without sending your cookies) to see whether the site says it honors GPC.
 
 ## 2. Data Stored on Your Device
-The extension stores the following inside your browser's local storage (`chrome.storage.local`) only:
+The extension stores the following inside your browser's local extension storage only:
 * The hostname of each website where tracker activity was seen (for example `news.example.com`). Full page addresses are not stored.
 * For each of those websites: which tracker domains were seen, how many requests and cookie attempts occurred, and when each was first and last seen.
 * The result of any `gpc.json` check you ran from the popup.

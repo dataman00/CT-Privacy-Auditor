@@ -16,7 +16,13 @@
   along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { matchTracker, TRACKER_URL_PATTERNS } from "./trackers.js";
+// Chrome runs this file as a service worker and loads trackers.js here.
+// Firefox runs it as a background page, with trackers.js listed first in the
+// manifest, so importScripts is not needed (or available) there.
+if (typeof importScripts === "function") importScripts("trackers.js");
+
+const api = globalThis.browser ?? globalThis.chrome; // Promise-based in both browsers.
+const { matchTracker, TRACKER_URL_PATTERNS } = globalThis.CTPA;
 
 const RULESET_ID = "gpc_rules";
 const GPC_SCRIPT_ID = "gpc-js-signal";
@@ -39,8 +45,8 @@ let localTimer = null;
 let sessionTimer = null;
 
 const ready = Promise.all([
-  chrome.storage.local.get({ log: {}, siteMeta: {}, gpcEnabled: true, trackerCounts: null }),
-  chrome.storage.session.get({ tabSites: {}, tabCounts: {} })
+  api.storage.local.get({ log: {}, siteMeta: {}, gpcEnabled: true, trackerCounts: null }),
+  api.storage.session.get({ tabSites: {}, tabCounts: {} })
 ]).then(async ([local, session]) => {
   log = local.log;
   siteMeta = local.siteMeta;
@@ -56,11 +62,11 @@ const ready = Promise.all([
       legacy[key] = legacy[key] || { requests: 0, cookies: 0, first: null, last: null };
       legacy[key].requests += n;
     }
-    await chrome.storage.local.set({ log });
+    await api.storage.local.set({ log });
   }
-  if (local.trackerCounts !== null) await chrome.storage.local.remove("trackerCounts");
+  if (local.trackerCounts !== null) await api.storage.local.remove("trackerCounts");
 
-  chrome.action.setBadgeBackgroundColor({ color: "#c9302c" });
+  api.action.setBadgeBackgroundColor({ color: "#c9302c" });
   await applyGpc(gpcEnabled).catch((e) => console.error("Could not apply GPC setting:", e));
 });
 
@@ -79,7 +85,7 @@ async function siteFor(tabId, initiator) {
   if (tabId >= 0) {
     if (tabSites[tabId]) return tabSites[tabId];
     try {
-      const tab = await chrome.tabs.get(tabId);
+      const tab = await api.tabs.get(tabId);
       const host = hostOf(tab.url || tab.pendingUrl);
       if (host) {
         tabSites[tabId] = host;
@@ -100,7 +106,7 @@ function badgeText(n) {
 
 function setTabBadge(tabId) {
   if (tabId < 0) return;
-  chrome.action.setBadgeText({ tabId, text: badgeText(tabCounts[tabId]) }).catch(() => {});
+  api.action.setBadgeText({ tabId, text: badgeText(tabCounts[tabId]) }).catch(() => {});
 }
 
 function lastSeen(site) {
@@ -124,7 +130,7 @@ function scheduleLocalSave() {
   localTimer = setTimeout(() => {
     localTimer = null;
     prune();
-    chrome.storage.local.set({ log, siteMeta });
+    api.storage.local.set({ log, siteMeta });
   }, FLUSH_DELAY_MS);
 }
 
@@ -132,7 +138,7 @@ function scheduleSessionSave() {
   if (sessionTimer) return;
   sessionTimer = setTimeout(() => {
     sessionTimer = null;
-    chrome.storage.session.set({ tabSites, tabCounts });
+    api.storage.session.set({ tabSites, tabCounts });
   }, FLUSH_DELAY_MS);
 }
 
@@ -143,7 +149,8 @@ async function record(details, kind) {
   const tracker = matchTracker(hostOf(details.url));
   if (!tracker) return;
 
-  const site = await siteFor(details.tabId, details.initiator);
+  // Chrome reports the requesting page as "initiator"; Firefox uses documentUrl / originUrl.
+  const site = await siteFor(details.tabId, details.initiator || details.documentUrl || details.originUrl);
   if (matchTracker(site) === tracker) return; // Visiting the tracker's own site.
 
   const now = Date.now();
@@ -166,12 +173,12 @@ async function record(details, kind) {
 }
 
 async function applyGpc(enabled) {
-  await chrome.declarativeNetRequest.updateEnabledRulesets(
+  await api.declarativeNetRequest.updateEnabledRulesets(
     enabled ? { enableRulesetIds: [RULESET_ID] } : { disableRulesetIds: [RULESET_ID] }
   );
-  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [GPC_SCRIPT_ID] });
+  const existing = await api.scripting.getRegisteredContentScripts({ ids: [GPC_SCRIPT_ID] });
   if (enabled && existing.length === 0) {
-    await chrome.scripting.registerContentScripts([{
+    await api.scripting.registerContentScripts([{
       id: GPC_SCRIPT_ID,
       matches: ["<all_urls>"],
       js: ["gpc.js"],
@@ -180,14 +187,14 @@ async function applyGpc(enabled) {
       world: "MAIN"
     }]);
   } else if (!enabled && existing.length > 0) {
-    await chrome.scripting.unregisterContentScripts({ ids: [GPC_SCRIPT_ID] });
+    await api.scripting.unregisterContentScripts({ ids: [GPC_SCRIPT_ID] });
   }
 }
 
 // ---------- listeners (registered at top level so they survive restarts) ----------
 
 // New page in a tab: remember its site and reset that tab's counter.
-chrome.webRequest.onBeforeRequest.addListener(
+api.webRequest.onBeforeRequest.addListener(
   (details) => {
     ready.then(() => {
       if (details.tabId < 0 || details.frameId !== 0) return;
@@ -203,7 +210,7 @@ chrome.webRequest.onBeforeRequest.addListener(
 );
 
 // Tracker requests.
-chrome.webRequest.onBeforeRequest.addListener(
+api.webRequest.onBeforeRequest.addListener(
   (details) => {
     if (details.type === "main_frame") return;
     record(details, "request").catch((e) => console.error("Error recording tracker request:", e));
@@ -213,17 +220,20 @@ chrome.webRequest.onBeforeRequest.addListener(
 
 // Tracker responses that try to set a cookie. Only the presence of the
 // header is noted; cookie values are never read or stored.
-chrome.webRequest.onHeadersReceived.addListener(
-  (details) => {
-    if (details.type === "main_frame") return;
-    const setsCookie = (details.responseHeaders || []).some((h) => h.name.toLowerCase() === "set-cookie");
-    if (setsCookie) record(details, "cookie").catch((e) => console.error("Error recording cookie:", e));
-  },
-  { urls: TRACKER_URL_PATTERNS },
-  ["responseHeaders", "extraHeaders"]
-);
+// Chrome hides Set-Cookie unless "extraHeaders" is requested. Firefox always
+// includes it and rejects the unknown option, so fall back without it.
+function onTrackerHeaders(details) {
+  if (details.type === "main_frame") return;
+  const setsCookie = (details.responseHeaders || []).some((h) => h.name.toLowerCase() === "set-cookie");
+  if (setsCookie) record(details, "cookie").catch((e) => console.error("Error recording cookie:", e));
+}
+try {
+  api.webRequest.onHeadersReceived.addListener(onTrackerHeaders, { urls: TRACKER_URL_PATTERNS }, ["responseHeaders", "extraHeaders"]);
+} catch {
+  api.webRequest.onHeadersReceived.addListener(onTrackerHeaders, { urls: TRACKER_URL_PATTERNS }, ["responseHeaders"]);
+}
 
-chrome.tabs.onRemoved.addListener((tabId) => {
+api.tabs.onRemoved.addListener((tabId) => {
   ready.then(() => {
     delete tabSites[tabId];
     delete tabCounts[tabId];
@@ -231,8 +241,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (sender.id !== chrome.runtime.id) return false;
+api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (sender.id !== api.runtime.id) return false;
 
   (async () => {
     await ready;
@@ -243,11 +253,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           siteMeta,
           gpcEnabled,
           tabCount: tabCounts[msg.tabId] || 0,
-          version: chrome.runtime.getManifest().version
+          version: api.runtime.getManifest().version
         };
       case "setGpc":
         gpcEnabled = !!msg.enabled;
-        await chrome.storage.local.set({ gpcEnabled });
+        await api.storage.local.set({ gpcEnabled });
         await applyGpc(gpcEnabled);
         return { ok: true, gpcEnabled };
       case "setSiteMeta":
@@ -263,8 +273,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         log = {};
         siteMeta = {};
-        await chrome.storage.local.set({ log, siteMeta });
-        await chrome.storage.session.set({ tabSites, tabCounts });
+        await api.storage.local.set({ log, siteMeta });
+        await api.storage.session.set({ tabSites, tabCounts });
         return { ok: true };
       default:
         return { ok: false, error: "Unknown message" };

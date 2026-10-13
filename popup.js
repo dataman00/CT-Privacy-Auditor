@@ -16,6 +16,9 @@
   along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
+const api = globalThis.browser ?? globalThis.chrome; // Promise-based in both browsers.
+const { CATEGORIES, trackerInfo } = globalThis.CTPA;
+
 const MAX_SITES_SHOWN = 50;
 const GPC_JSON_TIMEOUT_MS = 5000;
 
@@ -45,17 +48,40 @@ function hostOf(url) {
 function siteTotals(trackers) {
   let requests = 0;
   let cookies = 0;
-  for (const t of Object.values(trackers)) {
+  const categories = {}; // category -> number of distinct trackers
+  for (const [domain, t] of Object.entries(trackers)) {
     requests += t.requests || 0;
     cookies += t.cookies || 0;
+    const cat = trackerInfo(domain).category;
+    categories[cat] = (categories[cat] || 0) + 1;
   }
-  return { requests, cookies };
+  return { requests, cookies, categories, brokers: categories["data-broker"] || 0 };
 }
 
+// Sites that contacted data brokers first, then cookie attempts, then volume.
 function sortedSites() {
   return Object.entries(state.log)
     .map(([site, trackers]) => ({ site, trackers, ...siteTotals(trackers) }))
-    .sort((a, b) => b.cookies - a.cookies || b.requests - a.requests || a.site.localeCompare(b.site));
+    .sort((a, b) => b.brokers - a.brokers || b.cookies - a.cookies || b.requests - a.requests || a.site.localeCompare(b.site));
+}
+
+function sortedTrackers(trackers) {
+  return Object.entries(trackers)
+    .map(([domain, t]) => ({ ...t, info: trackerInfo(domain) }))
+    .sort((a, b) => a.info.rank - b.info.rank || b.requests - a.requests || a.info.domain.localeCompare(b.info.domain));
+}
+
+function categoryCount(n, category) {
+  const word = CATEGORIES[category].plural;
+  return `${n} ${n === 1 ? word.replace(/s$/, "") : word}`;
+}
+
+// "2 data brokers, 3 ad networks, 1 analytics tool"
+function categorySummary(categories) {
+  return Object.entries(categories)
+    .sort((a, b) => CATEGORIES[a[0]].rank - CATEGORIES[b[0]].rank)
+    .map(([cat, n]) => categoryCount(n, cat))
+    .join(", ");
 }
 
 function plural(n, word) {
@@ -81,7 +107,11 @@ function renderGpcStatus() {
   } else {
     label.className = "status-off";
     label.textContent = "Off. ";
-    status.append(label, "No opt-out signal is sent and auditing is paused. Reload open tabs after changing this.");
+    status.append(label, "This extension sends no opt-out signal and auditing is paused. Reload open tabs after changing this.");
+  }
+  // Firefox (and Chrome once it ships GPC) can also send the signal natively.
+  if (navigator.globalPrivacyControl === true) {
+    status.append(" Your browser's own GPC setting is on, so sites still receive the signal from the browser.");
   }
 }
 
@@ -91,7 +121,24 @@ function renderThisSite() {
   $("site-count").textContent = activeHost ? plural(n, "tracker request") : "";
   if (!activeHost) {
     $("site-count").style.display = "none";
+    $("site-categories").textContent = "";
     $("site-gpcjson").textContent = "Open a website to see its details.";
+    return;
+  }
+  const logged = state.log[activeHost];
+  const cats = $("site-categories");
+  cats.replaceChildren();
+  if (logged) {
+    const totals = siteTotals(logged);
+    if (totals.brokers > 0) {
+      const strong = document.createElement("strong");
+      strong.className = "broker-text";
+      strong.textContent = `Contacted ${categoryCount(totals.brokers, "data-broker")}. `;
+      cats.append(strong);
+    }
+    cats.append(`Seen on this site: ${categorySummary(totals.categories)}.`);
+  } else {
+    cats.textContent = "No trackers recorded on this site yet.";
   }
 }
 
@@ -111,7 +158,7 @@ function renderSiteList() {
 
   for (const s of sites.slice(0, MAX_SITES_SHOWN)) {
     const details = document.createElement("details");
-    details.className = s.cookies > 0 ? "cookies" : "requests-only";
+    details.className = s.brokers > 0 || s.cookies > 0 ? "flagged" : "requests-only";
     if (s.site === activeHost) details.open = true;
 
     const summary = document.createElement("summary");
@@ -120,26 +167,35 @@ function renderSiteList() {
     name.textContent = s.site;
     name.title = s.site;
     const pill = document.createElement("span");
-    pill.className = s.cookies > 0 ? "pill cookie" : "pill";
-    pill.textContent = s.cookies > 0
-      ? `${s.requests} req, ${plural(s.cookies, "cookie")}`
-      : `${s.requests} req`;
+    pill.className = s.brokers > 0 || s.cookies > 0 ? "pill cookie" : "pill";
+    const parts = [];
+    if (s.brokers > 0) parts.push(categoryCount(s.brokers, "data-broker"));
+    if (s.cookies > 0) parts.push(plural(s.cookies, "cookie"));
+    parts.push(`${s.requests} req`);
+    pill.textContent = parts.join(", ");
+    pill.title = categorySummary(s.categories);
     summary.append(name, pill);
     details.append(summary);
 
-    const trackers = Object.entries(s.trackers).sort((a, b) => b[1].requests - a[1].requests);
-    for (const [tracker, t] of trackers) {
+    for (const t of sortedTrackers(s.trackers)) {
       const row = document.createElement("div");
       row.className = "tracker-row";
+      const left = document.createElement("span");
+      left.className = "tracker-name";
       const tName = document.createElement("span");
       tName.className = "mono";
-      tName.textContent = tracker;
+      tName.textContent = t.info.domain;
+      tName.title = t.info.owner;
+      const tag = document.createElement("span");
+      tag.className = `tag tag-${t.info.category}`;
+      tag.textContent = t.info.label;
+      left.append(tName, tag);
       const tCount = document.createElement("span");
       tCount.className = "muted";
       tCount.textContent = t.cookies > 0
         ? `${t.requests} req, ${plural(t.cookies, "cookie")}`
         : `${t.requests} req`;
-      row.append(tName, tCount);
+      row.append(left, tCount);
       details.append(row);
     }
     list.append(details);
@@ -196,7 +252,7 @@ async function checkGpcJson() {
   // Save the result only for sites already in the log, so exports include it.
   if (state.log[activeHost]) {
     state.siteMeta[activeHost] = { gpcJson: result, checked: Date.now() };
-    chrome.runtime.sendMessage({ type: "setSiteMeta", site: activeHost, gpcJson: result });
+    api.runtime.sendMessage({ type: "setSiteMeta", site: activeHost, gpcJson: result });
   }
 }
 
@@ -220,12 +276,12 @@ function csvCell(value) {
 }
 
 function exportCsv() {
-  const header = ["site", "tracker", "requests", "cookie_attempts", "first_seen_utc", "last_seen_utc", "site_gpc_json", "gpc_json_checked_utc"];
+  const header = ["site", "tracker", "tracker_owner", "category", "requests", "cookie_attempts", "first_seen_utc", "last_seen_utc", "site_gpc_json", "gpc_json_checked_utc"];
   const lines = [header.join(",")];
   for (const s of sortedSites()) {
     const meta = state.siteMeta[s.site] || {};
-    for (const [tracker, t] of Object.entries(s.trackers)) {
-      lines.push([s.site, tracker, t.requests, t.cookies, iso(t.first), iso(t.last), meta.gpcJson || "not checked", iso(meta.checked)]
+    for (const t of sortedTrackers(s.trackers)) {
+      lines.push([s.site, t.info.domain, t.info.owner, t.info.label, t.requests, t.cookies, iso(t.first), iso(t.last), meta.gpcJson || "not checked", iso(meta.checked)]
         .map(csvCell).join(","));
     }
   }
@@ -244,9 +300,15 @@ function exportJson() {
       site: s.site,
       totalRequests: s.requests,
       totalCookieAttempts: s.cookies,
+      dataBrokers: s.brokers,
+      trackersByCategory: Object.fromEntries(
+        Object.entries(s.categories).map(([cat, n]) => [CATEGORIES[cat].label, n])
+      ),
       gpcJson: (state.siteMeta[s.site] || {}).gpcJson || "not checked",
-      trackers: Object.entries(s.trackers).map(([tracker, t]) => ({
-        tracker,
+      trackers: sortedTrackers(s.trackers).map((t) => ({
+        tracker: t.info.domain,
+        owner: t.info.owner,
+        category: t.info.label,
         requests: t.requests,
         cookieAttempts: t.cookies,
         firstSeenUtc: iso(t.first),
@@ -257,10 +319,31 @@ function exportJson() {
   download(JSON.stringify(report, null, 2), "application/json", `ct_privacy_audit_${new Date().toISOString().slice(0, 10)}.json`);
 }
 
+// ---------- site access ----------
+
+// Both browsers let users withhold site access after install. Without it the
+// extension cannot add the header, set the JavaScript signal, or see trackers.
+async function checkAccess() {
+  let granted = true;
+  try {
+    granted = await api.permissions.contains({ origins: ["<all_urls>"] });
+  } catch {
+    // Older API shape; assume access.
+  }
+  $("access-warning").hidden = granted;
+}
+
+$("grant-access").addEventListener("click", () => {
+  // Must be called directly from the click for Firefox to show the prompt.
+  api.permissions.request({ origins: ["<all_urls>"] })
+    .then((granted) => { if (granted) $("access-warning").hidden = true; })
+    .catch(() => {});
+});
+
 // ---------- actions ----------
 
 async function refresh() {
-  state = await chrome.runtime.sendMessage({ type: "getState", tabId: activeTab ? activeTab.id : -1 });
+  state = await api.runtime.sendMessage({ type: "getState", tabId: activeTab ? activeTab.id : -1 });
   render();
 }
 
@@ -268,7 +351,7 @@ $("gpc-toggle").addEventListener("change", async (e) => {
   const toggle = e.target;
   toggle.disabled = true;
   try {
-    await chrome.runtime.sendMessage({ type: "setGpc", enabled: toggle.checked });
+    await api.runtime.sendMessage({ type: "setGpc", enabled: toggle.checked });
     await refresh();
   } finally {
     toggle.disabled = false;
@@ -294,15 +377,16 @@ $("clear-btn").addEventListener("click", async () => {
   clearTimeout(clearTimer);
   btn.classList.remove("armed");
   btn.textContent = "Clear data";
-  await chrome.runtime.sendMessage({ type: "clear" });
+  await api.runtime.sendMessage({ type: "clear" });
   await refresh();
 });
 
 // ---------- start ----------
 
 (async () => {
-  [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
   activeHost = activeTab ? hostOf(activeTab.url) : null;
   await refresh();
+  checkAccess();
   checkGpcJson();
 })();

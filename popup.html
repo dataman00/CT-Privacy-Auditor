@@ -85,7 +85,7 @@
       border-radius: 4px;
       margin-bottom: 6px;
     }
-    details.cookies { border-left-color: var(--accent); }
+    details.flagged { border-left-color: var(--accent); }
     details.requests-only { border-left-color: var(--warn); }
     summary {
       list-style: none; cursor: pointer; padding: 7px 10px;
@@ -98,7 +98,17 @@
       background: var(--border); color: var(--text);
     }
     .pill.cookie { background: var(--accent); color: #fff; }
-    .tracker-row { display: flex; justify-content: space-between; padding: 4px 10px 4px 18px; border-top: 1px solid var(--border); }
+    .tracker-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 4px 10px 4px 18px; border-top: 1px solid var(--border); }
+    .tracker-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .tracker-name .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tag {
+      flex: none; font-size: 9.5px; font-weight: 600; border-radius: 3px; padding: 0 4px;
+      border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+    }
+    .tag-data-broker { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tag-ad-pixel, .tag-ad-network { color: var(--accent); border-color: var(--accent); }
+    .tag-session-recording { color: var(--warn); border-color: var(--warn); }
+    .broker-text { color: var(--accent); }
     .empty { padding: 10px; text-align: center; }
 
     .btns { display: flex; gap: 6px; margin-top: 10px; }
@@ -109,6 +119,9 @@
     button:disabled { opacity: .5; cursor: default; }
     #export-csv, #export-json { background: var(--blue); }
     #clear-btn { background: #6b7785; }
+    .card.warn { border-color: var(--warn); margin-bottom: 10px; }
+    #grant-access { display: block; width: 100%; margin-top: 8px; background: var(--blue); }
+    [hidden] { display: none !important; }
     #clear-btn.armed { background: var(--accent); }
     footer { margin-top: 10px; text-align: center; }
     a { color: var(--blue); }
@@ -119,6 +132,12 @@
     <h1>CT Privacy Auditor</h1>
     <span id="version"></span>
   </header>
+
+  <div id="access-warning" class="card warn small" hidden>
+    <strong>Site access is turned off.</strong> The extension can only send the GPC signal and see
+    trackers on sites it is allowed to access.
+    <button id="grant-access">Allow on all sites</button>
+  </div>
 
   <div class="card">
     <div class="row">
@@ -137,13 +156,15 @@
       <span id="site-host" class="mono">...</span>
       <span id="site-count" class="pill"></span>
     </div>
-    <div id="site-gpcjson" class="small muted" style="margin-top:6px"></div>
+    <div id="site-categories" class="small" style="margin-top:6px"></div>
+    <div id="site-gpcjson" class="small muted" style="margin-top:4px"></div>
   </div>
 
   <h2>All sites</h2>
   <p class="small muted" style="margin:0 0 8px">
     Tracker activity recorded while your GPC signal was on. A request alone does not prove a site
-    ignored your opt-out. A tracker trying to set a cookie is a stronger sign. This is not legal advice.
+    ignored your opt-out. Data sent to a data broker, or a tracker trying to set a cookie, is a stronger
+    sign. This is not legal advice.
   </p>
   <div id="site-list"></div>
   <div id="more-note" class="small muted"></div>
@@ -158,6 +179,7 @@
     <a id="dev-contact" href="https://github.com/dataman00/CT-Privacy-Auditor/issues" target="_blank" rel="noopener">Submit feedback</a>
   </footer>
 
+  <script src="trackers.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
